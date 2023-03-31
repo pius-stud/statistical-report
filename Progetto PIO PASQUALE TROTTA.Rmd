@@ -1,0 +1,1348 @@
+---
+title: "DATA ANALYSIS EXAM"
+author: "Pio Pasquale Trotta"
+date: '2022-07-06'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# PRESENTAZIONE DEL DATATASET
+
+Il dataset oggetto di analisi contiene numerose statistiche su ogni calciatore che ha preso parte al massimo campionato inglese di calcio, la **Premier League**, nella stagione 2021-2022. Ad esempio, per ogni calciatore possiamo vedere quale sia la squadra di appartenenza, la nazionalità, il numero di partite giocate o di goal segnati, ma vediamo le variabili più nel dettaglio.
+
+1.  Player : Nome del calciatore;
+2.  Team : Società di appartenenza del calciatore;
+3.  Nation : Nazinalità;
+4.  Pos : Posizione;
+5.  Age : Età del calciatore;
+6.  MP : Numero di Partite giocate;
+7.  Starts : Numero di partite da titolare;
+8.  Min : Numero di minuti giocati;
+9.  90s : Minuti giocati divisi per 90;
+10. Gls : Numero di Goal seganti;
+11. Ast : Numero di assists;
+12. G-PK : Goal segnati senza contare i rigori segnati;
+13. PK : Numero di Rigori seganti;
+14. PKatt : Rigori calciati;
+15. CrdY : Numero di Cartellini gialli;
+16. CrdR : Numero Cartellini rossi;
+17. Gls : Numero di goal ogni 90 minuti;
+18. Ast : Numero di assists ogni 90 minuti;
+19. G+A : Goal e Assists ogni 90 minuti;
+20. G-PK : Goal segnati senza contare i rigori segnati ogni 90 minuti;
+21. G+A-PK: Goal segnati + assist ogni 90 min senza i rigori segnati.
+
+```{r, message=FALSE, include=FALSE}
+
+# ponendo message = FALSE  e include = FALSE, non sarà mostrato nel documento di output in pdf il codice, né la sua esecuzione sulla console
+
+## IMPORTAZIONE DEL DATASET
+
+library(readr)
+Players_Stats <- read_csv("Football Players Stats (Premier League 2021-2022).csv")
+#View(Players_Stats)
+
+dim(Players_Stats)
+str(Players_Stats)
+
+attach(Players_Stats)
+
+#######################################
+## PULIZIA DEL DATASET E SELEZIONE DI VARIABILI SPECIFICHE
+#######################################
+
+# Verifichiamo la presenza di NA
+table(is.na(Players_Stats))
+
+
+# Rimuoviamo gli NA e verifichiamo nuovamente
+library(tidyverse)
+
+Players_Stats <- drop_na(Players_Stats)
+
+table(is.na(Players_Stats))
+
+# Seleziono le variabili numeriche che intendo utilizzare, andando a rimuovere
+# quelle che non userò (non userò le variabili expected)
+
+variabili_utilizzabili <- Players_Stats[, -c(22:30)]
+
+
+#Solo le variabili numeriche
+variabili_numeriche <- variabili_utilizzabili[,-c(1:4)]
+
+#View(variabili_numeriche)
+
+
+### Controlliamo i nomi delle variabili
+# Modifichiamo il nome delle variabili utilizzabili
+
+names(variabili_utilizzabili) <- c("Player","Team", "Nation", "Pos","Age","MP","Starts","Min","90s", "Gls","Ast",  "G-PK", "PK","PKatt" ,"CrdY", "CrdR","Gls90","Ast90", "G+A" ,"G-PK90","G+A-PK")
+
+nomi_variabili_utilizzabili <- names(variabili_utilizzabili)
+
+#Andiamo a modificare il nome delle variabili numeriche
+names(variabili_numeriche) <- c("Age","MP","Starts","Min","90s", "Gls","Ast",  "G-PK", "PK","PKatt" ,"CrdY", "CrdR","Gls90","Ast90", "G+A" ,"G-PK90","G+A-PK")
+
+nomi_variabili_numeriche <- names(variabili_numeriche)
+
+```
+*Tabella di esempio del dataset*
+```{r, echo=FALSE, include=TRUE, message = FALSE, warning=FALSE}
+# echo = FALSE ci permette di non vedere sul pdf il codice che è stato eseguito,
+# include = TRUE ci permette di vedere il risultato del codice che è stato eseguito.
+
+
+## ATTENZIONE: sono presenti degli errori in merito alla codifica di alcuni caratteri testualii
+
+# Vediamo come è fatto il dataset
+library(gtable)
+library(gt)
+library("shiny")
+
+
+head(variabili_utilizzabili[, c(1:9)]) %>%
+  gt() %>%
+  gtExtras::gt_theme_espn()
+
+```
+
+*La tabella continua alla pagina successiva*
+
+```{r, echo=FALSE, include=TRUE, message = FALSE, warning=FALSE}
+head(variabili_utilizzabili[, c(10:19)]) %>%
+  gt() %>%
+  gtExtras::gt_theme_espn()
+
+head(variabili_utilizzabili[, c(20:21)]) %>%
+  gt() %>%
+  gtExtras::gt_theme_espn()
+```
+
+## OBIETTIVI
+
+Sfruttando tale dataset, andremo ad effettuare un'analisi descrittiva delle variabili, in questo modo ne capiremo le caratteristiche. Successivamente, potremo effettuare dei paragoni tra le diverse dimensioni per individuare somiglianze o marcate differenze. La dimensionalità del dataset verrà poi ridotta attraverso l'Analisi delle componenti principali (PCA). Vi sarà il raggruppamento delle osservazioni omogenee grazie alla Cluster Analysis. Infine cercheremo eventuali relazioni tra il numero di partite giocate e le altre variabili per capire se queste statistiche influenzano il tempo di impiego in campo di un calciatore.
+
+\newpage
+
+# ANALISI DESCRITTIVA
+
+Grazie all'*analisi descrittiva* è possibile l'analisi e la sintesi dei dati osservati all'interno dei nostri campioni allo scopo di comunicare a terzi informazioni rilevanti sui dati.\
+Prima di calcolare e illustrare le varie informazioni sulle variabili di tipo numerico del dataset, è opportuno rimuovere tutte quelle osservazioni che assumono come valore **NA**. Una volta fatto ciò, è possibile calcolare alcune misure di tendenza centrale e di dispersione (o variabilità), nonché l'indice di asimmetria e l'indice di curtosi.\
+Per qanto concerne le misure di tendenza centrale e di dispersione (o variabilità), queste sono **media aritemtica, mediana, quartili, varianza, deviazione standard**.Parliamone in breve:
+
+- La *media aritmetica ($\overline{x}$)* rappreenta quel valore rispetto al quale tendono a concentrarsi tutte le altre osservazioni del campione studiato. Per poterla calcolare:
+
+\begin{center}
+$\overline{x}$ = $\frac{1}{n}\sum_{i=1}^{n} x_{i}$
+\end{center}
+
+- La *mediana* è una misura di posizione in grado di dividere in due parti uguali i livelli del nostro campione, più nello specifico, questa rappresenta quel valore che si trova esattamente al centro della distribuzione, facendo sì che sia rappresentato il 50% delle osservazioni da ambo i lati dello stesso. Dei quartili parleremo successivamente.
+
+- La *varianza ($\sigma^{2}$)* indica la dispersione dei valori di un campione attorno alla media aritmetica, più la varianza è bassa più le osservazioni del campione si attesteranno vicino alla media, e questa potrà essere usata come misura rappresentativa della variabile; al contrario, più la varianza è alta, più tenderanno a discostarsi dalla media aritmetica. Si calcola nel seguente modo:
+
+\begin{center}
+$\sigma^{2}$ = $\frac{1}{n-1} \sum_{i=1}^{n} (x_{i}-\overline{x})^2$
+\end{center}
+
+- La *deviazione standard ($\sigma$)* altro non è che la radice quadrata della varianza, avremo così la varianza nella stessa unità di misura della variabile considerata. Come per la varianza, in corrispondenza di valori alti, avremo una maggiore variabilità rispetto alla media e viceversa.
+
+\begin{center}
+$\sigma$ = $\sqrt{\sigma^{2}}$
+\end{center}
+
+Vediamo i risultati riportati in una tabella:
+
+
+```{r, include=FALSE, echo=FALSE}
+## Misure di tendenza e dispersione
+
+# Media aritemtica
+v_mean <- apply(variabili_numeriche, 2, mean)
+
+# Varianza
+v_var <- apply(variabili_numeriche, 2, var)
+
+# Standard Deviation
+v_sd <- apply(variabili_numeriche, 2, sd)
+
+# Minimo
+v_min <- apply(variabili_numeriche, 2, min)
+
+# Primo Quartile
+first_q <- apply(variabili_numeriche, 2, quantile, 0.25)
+
+# Mediana 
+v_median <- apply(variabili_numeriche, 2, median)
+
+# Terzo quartile
+third_q <- apply(variabili_numeriche, 2, quantile, 0.75)
+
+# Massimo
+v_max <- apply(variabili_numeriche, 2, max)
+
+
+
+
+library(gtExtras)
+
+desc_stats <- matrix(data = c(v_mean, v_var, v_sd, v_min, first_q,
+                            v_median, third_q, v_max),
+                   nrow = 17, ncol = 8,
+                   dimnames = list(nomi_variabili_numeriche, c("Mean", "Variance",
+                                                   "St.Deviation", "Min",
+                                                   "First Qu.","Median", "Third Qu.","Max")))
+
+desc_stats
+
+desc_stats <- data.frame(desc_stats)
+```
+
+```{r, echo=FALSE, include=TRUE}
+# Creazione grafica della tabella descrittiva
+
+gt(desc_stats, rownames_to_stub = 1,auto_align = 1) %>%
+  gtExtras::gt_theme_espn()
+```
+
+### Informazioni estraibili dalla tabella
+
+Grazie a queste analisi siamo in grado di estrarre alcune informazioni dalla tabella. Per esempio, adesso sappiamo che l'età dei calciatori in Premier League nella stagione 21/22 variava da un minimo di 16 anni ad un massimo di 39, con una media intorno ai 25. Possiamo vedere che la mediana di goal segnati per ogni giocatore è pari ad 1, mentre la media aritmetica è 1.899, la misura più affidabile in questo caso è la mediana, poiché sappiamo che nel corso di un campionato vi sono motli calciatori che non segnano affatto, o che addirittura non giocano, perciò sarebbe errato pensare che sia prossima a 2. Inoltre, per alcune variabili analizzate (*AGE, MP, STARTS, MIN, 90S, GLS,AST, G-PK*), il valore della varianza è maggiore di zero, quindi vorrà dire che, per quelle variabili (tra cui anche il numero di goal segnati), non sarà opportuno identificare la media come misura di posizione rappresentativa. Per le restanti, i valori sono molto piccoli e minori di zero, pertanto, si può considerare la media come rappresentativa.
+
+### Indici di asimmetria e di curtosi
+In merito all'*indice di asimmetria* e al *indice di curtosi*, dobbiamo dire alcune cose.
+
+
+L'**indice di asimmetria ($\gamma_{1}$)** ci permette di capire se la distribuzione di un campione attorno ad un valore $x_{0}$ è simmetrica o asimmetrica, nel qual caso distinguiamo asimmetria negativa e positiva.
+Come si calcola l'indice di asimmetria:
+
+
+\begin{center}
+$\gamma_{1}$ = $\frac{1}{n} \sum_{i=1}^{n} (\frac{x_{i}-\overline{x}}{\sigma})^3$
+\end{center}
+
+
+
+- $\gamma_{1}$ = 0 : Distribuzione *Simmetrica*, ciò vuol dire che la media aritmetica ($\overline{x}$), la mediana ($Me$) e la moda ($Mo(X)$) assumono lo stesso valore. 
+
+
+\begin{center}
+$\overline{x}$ = $Me$ = $Mo(X)$
+\end{center}
+
+
+
+- $\gamma_{1}$ > 0 :  *Asimmetria positiva* (o *a sinistra*): la moda assume un valore più piccolo delle mediana, la quale, a sua volta, è più piccola della media aritmetica. Da un punto di vista grafico, il "picco" della curva (corrispondente al valore della Moda) sarà spostato più a sinistra.
+
+
+\begin{center}
+$Mo(X) \le Me \le \overline{x}$
+\end{center}
+
+
+- $\gamma_{1}$ < 0 :  *Asimmetria negativa* (o *a destra*): la moda assume un valore più grande delle mediana, la quale, questa volta, è maggiore della media aritmetica. Graficamente, il "picco" della curva sarà spostato a destra.
+
+
+\begin{center}
+$\overline{x} \le Me \le Mo(X)$
+\end{center}
+
+\  
+
+Invece, l'**indice di curtosi** ($\gamma_{2}$) riguarda il grado di "appiattimento" della curva considerata, ovvero quanto velocemente le code tendono a zero.
+
+
+\begin{center}
+$\gamma_{2}$ = $|\frac{1}{n} \sum_{i=1}^{n} (\frac{x_{i}-\overline{x}}{\sigma})^4| - 3$
+\end{center}
+
+
+- $\gamma_{2}$ = 0 : *comportamento normale*, parleremo perciò di *curva Gaussiana* o *mesocurtica*, la curva è "piatta" come una normale.
+
+- $\gamma_{2}$ > 0 : *curva leptocurtica*, le code tendono a zero molto velocemente, maggiormente rispetto ad una normale.
+
+- $\gamma_{2}$ < 0 : *curva platicurtica*, le code tendono a zero lentamente, meno velocemente rispetto ad una normale.
+
+
+\newpage
+```{r, echo=FALSE, include=FALSE}
+## COEFFICIENTI DI SIMMETRIA E INDICE DI CURTOSI
+
+# Simmetria 
+
+#install.packages("moments")
+library(moments)
+coeff_simm <- skewness(variabili_numeriche)
+
+
+# Curtosi
+curtosi_index <- kurtosis(variabili_numeriche)
+
+# Creo un dataframe per rappresentare nella tabella i valori calcolati
+sk_ku <- data.frame(matrix(data = c(coeff_simm, curtosi_index),
+                           nrow = 17, ncol = 2,
+                           dimnames = list(nomi_variabili_numeriche,
+                                           c("Simmetria", "Curtosi"))))
+
+```
+
+```{r, echo=FALSE, include=TRUE}
+gt(sk_ku, rownames_to_stub = 1,auto_align = 1) %>%
+  gtExtras::gt_theme_espn()
+```
+\  
+Osservando i valori presenti nella tabella, possiamo notare che nessuna distribuzione è perfettamente simmetrica oppure mesocurtica, infatti vediamo come tute le distribuzioni, con intensità differente, siano leptocurtiche (*curtosi* > 0, perciò le code delle curve che le rappresentano tendono a zero molto velocemente). Inoltre, solo un campione (*MP*) ha una distribuzione **asimmetrica negativa**, gli altri presentano tutti un'**asimmetria positiva**.
+\newpage
+
+## STRUMENTI GRAFICI PER L'ANALISI DESCRITTIVA
+## Boxplot - Spiegazione teorica
+
+Il **Boxplot** è un tipo di grafico utilizzato per rappresentare distribuzioni di campioni attraverso indici di dispersione e di posizione ($X_{min}, Q_{1}, Me, Q_{3}, X_{Max}$).  Detto anche "*Diagramma a scatola e baffi*", il boxplot è costituito da una parte centrale detta appunto "*scatola*", questa scatola è delimitata dal **Primo Qaurtile** ($Q_{1}$, lato sinistro della scatola) e dal **Terzo Quartile** ($Q_{3}$, lato destro).
+
+- $Q_{1}$ : Il primo quartile ci fa comprendere che al di sotto di esso sono presenti il 25% dei valori osservati;
+
+- $Q_{2}$ o $Me$ : Il secondo quartile è rappresentato dalla mediana. Come già detto in precedenza, al di sotto e al di sopra di essa sono presenti il 50% delle osservazioni;
+
+- $Q_{3}$ : Al di sotto del terzo quartile abbiamo il 75% dei valori.
+
+Ovviamente, al di sopra di $Q_{3}$ avremo il restante 25% del campione. Quindi, ora sappiamo praticamente che all'interno della scatola è presente il 50% delle osservazioni. La scatola viene detta *Range Interquartile* ($IQR$), ed è la differenza tra il terzo e il primo quartile.
+
+\begin{center}
+$IQR = Q_{3} - Q_{1}$
+\end{center}
+ 
+La linea all'interno della scatola rappresenta la Mediana $Me$. 
+I segmenti che si diramano dai lati della scatola sono detti "**Baffi**", questi indicano la dispersione dei dati inferiori al primo quartile e maggiori al terzo quartile. Come si calcolano i baffi $(h, H)$:
+
+
+\begin{align*}
+h & = Q_{1}-1.5(IQR) = Q_{1}-1.5(Q_{3} - Q_{1}) \\ 
+H & = Q_{3}+1.5(IQR) = Q_{3}+1.5(Q_{3} - Q_{1})
+\end{align*}
+
+Se non vi sono valori anomali (**outliers**), allora $X_{min}$ e $X_{Max}$ saranno in corrispondenza di $(h, H)$. Se, invece, sono presenti outliers:
+
+\begin{center}
+$X_{min} < h$ oppure $X_{Max} > H$
+\end{center}
+
+
+## Boxplot - visualizzazione di alcune distribuzioni
+```{r, echo=FALSE, include=FALSE, warning=FALSE}
+library(ggplot2)
+library(grid)
+library(gridExtra)
+```
+
+```{r echo=FALSE, warning=FALSE, include=TRUE}
+## BOXPLOT
+
+bx1 <- ggplot(variabili_numeriche, aes(Age)) + 
+  geom_boxplot(fill = "bisque", outlier.colour = "blue") +
+  labs(title = "Età")
+
+bx2 <- ggplot(variabili_numeriche, aes(Min)) +
+  geom_boxplot(fill = "bisque", outlier.colour = "blue") +
+  labs(title = "Minuti giocati")
+
+bx3 <- ggplot(variabili_numeriche, aes(MP)) +
+  geom_boxplot(fill = "bisque", outlier.colour = "blue") +
+  labs(title = "Partite giocate")
+
+bx4 <- ggplot(variabili_numeriche, aes(Starts)) +
+  geom_boxplot(fill = "bisque", outlier.colour = "blue") +
+  labs(title = "Partite da titolare")
+
+bx5 <- ggplot(variabili_numeriche, aes(Gls)) +
+  geom_boxplot(fill = "bisque", outlier.colour = "blue") +
+  labs(title = "Goal segnati", x = 'Goals')
+
+bx6 <- ggplot(variabili_numeriche, aes(Ast)) +
+  geom_boxplot(fill = "bisque", outlier.colour = "blue") +
+  labs(title = "Assists effettuati", x = 'Assists')
+
+bx7 <- ggplot(variabili_numeriche, aes(CrdY)) +
+  geom_boxplot(fill = "bisque", outlier.colour = "blue") +
+  labs(title = "Cartellini gialli", x = "Cartellini Gialli")
+
+bx8 <- ggplot(variabili_numeriche, aes(Gls90)) +
+  geom_boxplot(fill = "bisque", outlier.colour = "blue") +
+  labs(title = "Goal ogni 90 minuti", x = "Goal")
+
+bx9 <- ggplot(variabili_numeriche, aes(Ast90)) +
+  geom_boxplot(fill = "bisque", outlier.colour = "blue") +
+  labs(title = "Assist ogni 90 minuti", x = "Assist")
+
+
+grid.arrange(bx1, bx4, bx7, bx5, bx3, bx6, bx8, bx2, bx9, nrow = 3)
+```
+\  
+Nella griglia sopra riportata sono presenti i boxplot di alcune distribuzioni del nostro dataset. Come possiamo vedere, alcuni di essi presentano dei punti blu, questi rappresentano gli outliers all'interno di quella specifica variabile. In questo caso, grazie a tali outliers, comprendiamo che vi sono alcuni pochi calciatori che hanno segnato o fornito degli assist in numero di gran lunga più elevato rispetto al resto della distribuzione. Vediamo come vi siano pochi calciatori ammoniti più degli altri. Possiamo notare che alcune distribuzioni (*Min, MP, Age, Starts*) non presentano outliers.
+Mediante i boxplot è possibile capire se una distribuzione è simmetrica o meno.
+Dai boxplot sopra riportati vediamo come siano tutte nettamente asimmetriche a sinistra, tranne *MP*, la quale è leggermente asimmetrica a destra (è possibile affermarlo osservando anche l'indice di asimmetria calcolato in precedenza).
+\newpage
+
+## Istogramma
+L'*Istogramma* è un grafico utile per studiare la distribuzione di variabili numeriche (ma anche di variabili discrete se presenti molte osservazioi) e viene sfruttato per rappresentare le disribuizioni per classi. Sull'asse delle ascisse abbiamo i livelli della variabile considerata suddivisi in "classi", ogni classe può avere ampiezza diversa, ma nel nostro caso sono equiampie, quindi le barre del nostro istogramma avranno tutte la stessa ampiezza. Le barre sono tra loro adiacenti e la loro altezza è proporzionale alla *densità di frequenza* (rapporto tra la frequenza, assoluta o relativa, e l'ampiezza della classe), la quale ci dice come si distribuiscono le frequenze all'interno della classe.
+\  
+
+
+```{r, echo=FALSE, include=TRUE}
+### ISTOGRAMMA
+
+histmin <-  ggplot(variabili_numeriche, aes(Min)) +
+  geom_histogram(aes(y=..density..), binwidth=100, fill="#69b3a2", color="black")+
+  geom_density(fill="tomato", color="#e9ecef", alpha=0.6) +
+  labs(title = "Minuti giocati")
+
+
+boxmin <- ggplot(variabili_numeriche, aes(Min)) +
+  geom_boxplot(fill = "#69b3a2", outlier.colour = "#e9ecef") +
+  labs(title = "Minuti giocati")
+
+
+grid.arrange(boxmin, histmin)
+
+```
+\  
+Dal nostro istogramma relativo ai minuti giocati da tutti i calciatori, notiamo come la distribuzione di tale variabile sia leggermente asimmetrica a sinistra (osservando anche il boxplot per effetuare un confronto), quindi avremo una moda con un valore più piccolo rispetto alla mediana della distribuzione e notiamo anche la presenza di *multimodalità*.
+
+\newpage
+## Correlazione
+
+Prima di parlare della correlazione, è bene dire cosa sia la **covarianza** ($Cov(X, Y)$ o $s_{XY}$). Questa rappresenta un indice di variabilità congiunta e si calcola nel seguente modo:
+
+\begin{center}
+$s_{XY} = \frac{1}{n-1} \sum_{i=1}^{n} (x_{i} - \overline{x})(y_{i} - \overline{y})$
+\end{center}
+
+- $s_{XY}$ = 0 : assenza di legame lineare;
+- $s_{XY}$ > 0 : dipendenza lineare positiva;
+- $s_{XY}$ < 0 : dipendenza lineare negativa.
+\  
+
+\  
+Vi è un problema, l'indice di covarianza, però, non ci dice quale sia l'intesità del legame lineare, perciò ci serviremo della correlazione.
+\  
+
+La **correlazione** ($r_{XY}$) è un coefficiente in grado di rappresentare l'intesità del legame di dipendenza lineare tra due variabili, se presente. Il coefficiente di correlazione può assumere valori compresi tra $[-1, 1]$.
+Rappresenta il rapporto tra la covarianza ($s_{XY}$) e il prodotto delle deviazioni standard di $X$ e $Y$.
+\  
+\begin{center}
+$r_{XY} = \frac{s_{XY}}{\sqrt{\sigma_{X}^{2} \sigma_{y}^{2}}} $
+\end{center}
+\  
+
+- $r_{XY}$ = 0 : Assenza di legame lineare;
+
+- $0 < r_{XY} \le 1$ : Legame lineare positivo, ciò significa che ad incrementi in media della $X$ avremo incrementi proporzionali della $Y$;
+
+- $-1 \le r_{XY} < 0$ : Legame lineare negativo, ciò significa che ad incrementi (o decrementi) in media della $X$ avremo decrementi (o incrementi) proporzionali della $Y$.
+
+
+```{r, echo=FALSE, include=FALSE}
+library(PerformanceAnalytics)
+```
+```{r,echo=FALSE,include=TRUE, warning=FALSE}
+
+chart.Correlation(variabili_numeriche, histogram = TRUE)
+```
+\  
+
+Il *correlation chart* qui riportato rappresenta le correlazioni tra ogni variabile numerica considerata del dataset. Lungo la diagonale principale sono presenti i nomi delle variabili considerate con i relativi istogrammi rappersentativi e la linea di tendenza; nella parte inferiore abbiamo gli scatter plot tra le variabili. Nella parte superiore, invece, sono rappresentati i valori dei coefficienti di correlazione, sulla base della grandezza del valore, il numero sarà graficamente proporzionto. Vicino a $r_{XY}$ sono presenti degli asterischi, i quali indicano il **p-value**. Questo riguarda il *Test del coefficiente di correlazione*, dove l'ipotesi nulla è $H_{0} = 0$, e lipotesi alternativa è $H_{1} \neq 0$.
+
+- p-values tra 0 e 0.001:  ***
+- p-values tra 0.001 e 0.05: **
+- p-values tra 0.05 e 0.01: *
+- p-values tra 0.01 e 0.1: .
+- p-values tra 0.1 e 1: ' '
+\  
+
+Ricordiamo che se il p-value è minore del livello di significatività ($\alpha$), rifiuteremo l'ipotesi nulla.
+ 
+### Correlogramma
+Il **Correlogramma** ci permette di capire il grado di correlazione tra due variabili dal grado del colore che visualizziamo, grado che è proporzionale al coefficiente di correlazione $r_{XY}$. Colore che sfuma dal blu più scuro (correlazione positiva), passando per il bianco (assenza di correlazione), fino a giungere al rosso (dipendenza lineare negativa).
+```{r, echo=FALSE, include=FALSE}
+## Correlogramma
+library(corrplot)
+```
+```{r, echo=FALSE, include=TRUE}
+corrplot(cor(variabili_numeriche), type = "upper")
+```
+\  
+Dal correlogramma notiamo come vi sia solo correlazione positiva o assenza di correlazione tra le variabili, non è presente alcun tipo di correlazione negativa. Per esempio, vediamo come la correlazione positiva sia molto alta tra *MP* (partite giocate) e *Starts* (partite da titolare), meno alta, ma comunque presente, tra *CdrY* (cartellini gialli) e *CdrR* (cartellini rossi), e bassissima se non assente tra *PKatt* (rigori calciati) e *G+A* (rateo goal e assist ogni 90 minuti).
+
+\newpage
+## Bubble Plot
+Il **Bubble Plot** è un tipo di *scatter plot* in grado di mettere in relazione più variabili, almeno tre, contemporaneamente e, quindi, di fornirci più informazioni. Le informazioni vengono estratte in base al tipo di relazione (se presente, osservarbile data la dispersione dei punti sul piano), nonché dalla forma e/o dal colore dei punti, i quali dipendono dalle variabili considerate.
+\  
+
+```{r, echo=FALSE, include=TRUE}
+bbplot <- ggplot(Players_Stats, aes(MP, Gls...10, size = Age, color = Pos)) +
+  geom_point(alpha = 0.4) +
+  scale_size(range = c(0.1, 10), name="Age") +
+  labs(title = "Goal per partite giocate", x = "Partite Giocate",
+       y = "Goal")
+
+bbplot
+```
+\  
+Il bubble plot appena visto rappresenta il numero di goal segnati in base al numero di partite giocate, evidenziando la posizione  del calciatore (colore) e l'età (area bolla). Dalla dispersione dei vari punti è possibile capire che vi è dipendenza lineare positiva tra il numero di partite giocate e i goal segnati. Inoltre, grazie all'area della "bolla", si evince che l'età media dei giocatori è di 25 anni. Infine, vediamo come a segnare di più siano i calciatori che ricoprono ruoli offensivi (FW = *Forward*, attaccante, oppure FW = *Forward Wing*, ala offensiva), mentre i difensori o centrocampisti difensivi (*DF*, *DF,MF*) o i portieri (*GK*= Goal keeper) segnano pochissimo.
+\  
+```{r, echo=FALSE, include=TRUE}
+bbl <- ggplot(Players_Stats, aes(Starts, Gls...10, size = PKatt, color = Pos)) +
+  geom_point(alpha = 0.4) +
+  scale_size(range = c(0.1, 10), name="Rigori calciati") +
+  labs(title = "Goal per partite giocate", x = "Partite da Titolare",
+       y = "Goal")
+bbl
+
+```
+\  
+Questo secondo *Bubble plot* evidenzia come, linearmente, all'aumentare delle numero di partite da titolare, aumentino anche i goal segnati, Inoltre il numero di goal segnati è anche legato, in questo caso, al numero di rigori calciati (*PKatt*;il numero di rigori segnati *PK* non è considerato), poiché, come possiamo vedere, i punti hanno un'area maggiore in corrispondenza di un numero di goal maggiore. Infine, possiamo affermare che gran parte dei rigori sono calciati da giocatori che ricoprono ruoli offensivi (area più ampia e colore della *bolla* fanno sì che ciò si evinca).
+\newpage
+
+## Barplot - Diagramma a barre
+Il *Barplot* (in italiano *diagramma a barre*) è un grafico in grado di illusttrare la frequenza assoluta dei livelli all'interno di un campione. Sull'asse delle ascisse poniamo le osservazioni del nostro campione, mentre sulle ordinate verrà posta la frequenza di ciascun livello. Le barre in corrispondenza di ogni osservazione avranno un'altezza proporzionale alla frequenza, mentre la base è sempre equiampia e non adiacente alla precedente/successiva.
+\  
+```{r, echo=FALSE, include=FALSE}
+società <- levels(as.factor(Team))
+società
+
+
+arsenal_goal <- subset(variabili_utilizzabili, select = Gls, subset = Team == "Arsenal")
+arsenal_goal
+
+ars_tot <- sum(arsenal_goal)
+
+
+astonvilla_goal <- subset(variabili_utilizzabili, select = Gls, subset = Team == "Aston Villa")
+astonvilla_goal
+
+astv_tot <- sum(astonvilla_goal)
+
+
+brentford_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Brentford"))
+
+brighton_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Brighton & Hove Albion"))
+
+burnley_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Burnley"))
+
+chelsea_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Chelsea"))
+
+cpalace_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Crystal Palace"))
+
+everton_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Everton"))
+
+leeds_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Leeds United"))
+
+leicester_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Leicester City"))
+
+liverpool_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Liverpool"))
+
+mancity_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Manchester City"))
+
+manutd_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Manchester United"))
+
+newcastle_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Newcastle United"))
+
+norwich_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Norwich City"))
+
+southampton_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Southampton"))
+
+spurs_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Tottenham Hotspur"))
+
+watford_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Watford"))
+
+westham_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "West Ham United"))
+
+wolves_tot <- sum(subset(variabili_utilizzabili, select = Gls, subset = Team == "Wolverhampton Wanderers"))
+
+
+goal_per_team <- c(ars_tot, astv_tot, brentford_tot, brighton_tot, burnley_tot,
+                   chelsea_tot, cpalace_tot, everton_tot, leeds_tot, leicester_tot,
+                   liverpool_tot, mancity_tot, manutd_tot, newcastle_tot,
+                   norwich_tot, southampton_tot, spurs_tot, watford_tot,
+                   westham_tot, wolves_tot)
+
+
+mx_goal <- matrix(data = c(società, goal_per_team), ncol = 2, nrow = 20,
+                  dimnames = list(c(1:20), c("Squadra","Goal")))
+mx_goal
+
+data_goal <- data.frame(mx_goal)
+attach(data_goal)
+
+```
+
+```{r, echo=FALSE, include=TRUE}
+# Barplot del numero totale di goal per ogni squadra
+ggplot(data = data_goal, aes(x = Squadra ,y = Goal, fill = Squadra)) +
+  geom_bar(stat = "identity") + 
+  coord_flip() +
+  scale_fill_hue(c = 150) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  labs(title = "Goal totali per ogni squadra")
+```
+\  
+Per costruire il diagramma di cui sopra (in questo caso è rovesciato per una migliore visualizzazione), è stato necessario effettuare il **subsetting** (creazione di sottoinsiemi) dei calciatori rispetto alla propria squadra di appartenenza. Quindi, una volta ottenuto un sottoinsieme dei calciatori per ogni *Team*, sono stati considerati i goal di ognuno di essi e poi sommati, in modo tale da proddure il numero di goal segnati da ogni squadra nel corso del campionato. Vediamo come le squadre ad aver seganto di più siano il Manchester City e il Liverpool, seguite dal Chelsea; le squadre ad aver segnato meno goal sono il Burnley e il Norwich City (*nel grafico non è stato ritenuto necessario ordinare in modo crescente/decrescente le barre poiché i valori sono indicati in maniera precisa per ognuna*).
+\  
+
+*Esempio di subsetting effettuato*
+```{r, echo=TRUE}
+mancity_tot <- sum(subset(variabili_utilizzabili, select = Gls,
+                          subset = Team == "Manchester City"))
+```
+
+\newpage
+## Radarchart
+Il *radarchart* è uno strumento grafico in grado di mostrare contemporaneamente più variabili e permetterne il confronto.
+
+```{r, echo=FALSE, include=FALSE}
+df.radar <- subset(variabili_utilizzabili, select = c(Age, MP, Starts, Gls, Ast, CrdY, CrdR),
+                          subset = Pos == "DF")
+df.radar
+
+mf <- subset(variabili_utilizzabili, select = c(Age, MP,Starts, Gls, Ast, CrdY, CrdR),
+                          subset = Pos == "MF")
+mf
+
+
+fw <- subset(variabili_utilizzabili, select = c(Age, MP, Starts,Gls, Ast, CrdY, CrdR),
+                          subset = Pos == "FW")
+fw
+
+frame_radar <- as.data.frame(rbind(v_max[-c(4, 5, 8, 9, 10, 13, 14, 15, 16, 17)],
+                                   v_min[-c(4, 5, 8, 9, 10, 13, 14, 15, 16, 17)]))
+
+frame_radar
+str(frame_radar)
+
+mean.df <- apply(df.radar, 2, mean)
+mean.mf <- apply(mf, 2, mean)
+mean.fw <- apply(fw, 2, mean)
+
+
+
+frame_radar[3,] <- mean.df
+frame_radar[4,] <- mean.mf
+frame_radar[5,] <- mean.fw
+
+frame_radar
+
+library(fmsb)
+
+areas <- c(rgb(1, 0, 0, 0.25),
+           rgb(0, 1, 0, 0.25),
+           rgb(0, 0, 1, 0.25))
+```
+```{r, echo=FALSE, include=TRUE}
+radarchart(frame_radar,
+           cglty = 1,       # Grid line type
+           cglcol = "gray", # Grid line color
+           pcol = 2:4,      # Color for each line
+           plwd = 2,        # Width for each line
+           plty = 1,        # Line type for each line
+           pfcol = areas, 
+           seg = 3)   # Color of the areas   
+
+legend("topright",
+       legend = paste(c("DF", "MF", "FW")),
+       bty = "o", pch = 20, col = areas,
+       text.col = "grey25", pt.cex = 2)
+```
+\  
+Il radarchart in figura mette a confronto quei calciatori che ricoprono soltanto un ruolo (quindi *DF*= Difensori, *MF*= centrocampisti, *FW*=attaccanti) e non più ruoli (*FW,DF*; *DF,MF*; etc...Questa scelta è stata fatta per avere una rappresentazione grafica non confusionale). Da tale grafico possiamo confrontare alcune statistiche dei giocatori sulla base della loro posizione. Vediamo come non ci siano enormi differenze, ma possiamo asserire con certezza che gli attaccanti (in blu) in media segnano di più dei giocatori negli altri ruoli e effettuano più assist. I centrocampisti sono quelli che ricevono più cartellini gialli e giocano più partite in assoluto, mentre i difensori sono coloro che ricevono più cartellini rossi in media e giocano più partite partendo da titolari. 
+\newpage
+
+# ANALISI ESPLORATIVA
+L'**Analisi Esplorativa** mira, mediante diverse tecninche, ad esplicitare le correlazioni tra i dati considerati. Abbiamo: l'*Analisi delle componenti principali* e l'*Analisi dei cluster*.
+
+## ANALISI DELLE COMPONENTI PRINCIPALI (PCA)
+
+L'**Analisi delle componenti principali** (Principal Component Analysis) è una procedura matematica che punta a ridurre la dimensionalità di un dataset, semplificando quindi i dati di origine. Ciò che viene fatto è partire dal nostro numero di variabili per ottenere un numero di nuove variabili inferiore, ossia le **Componenti Principali** (*PC*). Queste manterranno gran parte della variabilità originaria.
+
+Le nuove dimensioni che otteremo hanno diverse proprietà:
+
+- Le PC non sono tra loro correlate;
+
+- Hanno sempre media uguale a 0 ($E(Y_{1}) = 0,...,E(Y_{p}) = 0$);
+
+- Ogni autovalore ($\lambda$) corrisponde alla varianza della componente principale;
+
+\begin{center}
+$Var(Y_{k})= \lambda_{k}$
+\end{center}
+\  
+
+- Le componenti principali sono ordinate in ordine decrescente di varianza (autovalore)(quindi la prima PC avrà la varianza più alta);
+
+- Le PC hanno correlazioni uguali a 0;
+
+- Sommando tutti gli autovalori otteremo la varianza totale;
+
+### Come scegliere il numero di PC a cui ridurre il dataset
+Per scegliere il numero di componenti principali esistono 3 diversi criteri:
+
+1. Scegliere un numero di PC che mantenga l'80% della variabilità totale;
+
+2. Scree Plot;
+
+3. *Regola di Kaiser*: scegliere le PC che hanno autovalori maggiori di 1;
+.
+\  
+
+### 1. Percentuale di varianza spiegata
+\  
+```{r, echo=FALSE, include=FALSE}
+library("FactoMineR")
+library("factoextra")
+
+numv_stand <- scale(variabili_numeriche)
+
+objects_of_pca <- PCA(numv_stand,  graph = FALSE)
+objects_of_pca
+
+# Vediamo i risultati
+
+# Estraiamo gli autovalori/varianze
+
+objects_of_pca$eig
+
+
+df.eig <- data.frame(objects_of_pca$eig)
+
+
+```
+
+```{r, echo=FALSE, include=TRUE}
+gt(df.eig, rownames_to_stub = 1,auto_align = 1) %>%
+  gtExtras::gt_theme_espn()
+
+```
+
+Osservando la tabella, in cui sono riportati per ogni componente principale: gli autovalori, la percentuale di varianza spiegata e la percentuale cumulativa di varianza spiegata, secondo il *primo criterio*, sceglieremo le prime 4 PC, in quanto in corrispondenza della componente numero 4, avremo una varianza cumulativa pari all'78.97% (non è necessario ottenere un valore pari o superiore all'80% della variabilità se il numero di variabili di partenza è abbastanza elevato, in questo caso sono 17).
+
+### 2. Scree plot
+
+```{r, echo=FALSE, include=TRUE}
+# Visualizziamo gli autovalori/varianze (SCREE PLOT)
+
+fviz_eig(objects_of_pca)
+```
+\  
+Anche osservando lo *scree plot*, siamo sicuri di scegliere solo le prime 4 componenti principali. Lo scree plot mette in relazione le nuove dimensioni con la percentuale (non cumulativa) di varianza spiegata e poiché questa decresce ad ogni PC successiva (come possiamo vedere anche nella tabella precedente), il grafico sarà una curva spezzata con pendenza negativa.
+
+Per determinare quante componenti principali scegliere con tale strumento, dobbiamo osservare da quale componente in poi la curva tende ad appiattirsi, dobbiamo scegliere perciò le componenti principali prima di questo punto. Nel nostro caso, la curva tende ad appiattirsi a partire dalla componente numero 5, perciò sceglieremo solo 4 componenti principali.
+\newpage
+
+### 3. Regola di Kaiser
+
+Secondo la regola di Kaiser è necessario scegliere autovalori maggiori di 1. Per tale motivo, andando a guardare la tabella vista precedentemente, sceglieremo un numero di componenti pricipali pari a 4 ($\lambda_{4} = 1.48130$), quindi maggiore di 1 ($\lambda_{5} = 1.005544$).
+
+### CONTRIBUTO DELLE VARIABILI DEL DATASET ALLE COMPONENTI PRINCIPALI
+È possibile vedere quale sia il contributo dato dalla variabile alla nuova componente pricipale tramite la correlazione. Quest'ultima viene usata come coordinata della variabile nell'analisi delle PC. La rappresentazione delle variabili è differente dal grafico delle osservazioni, poiché:
+
+- le osservazioni vengono rappresentate dalle loro proiezioni;
+
+- le variabili vengono rappresentate dalle loro correlazioni.
+
+\  
+```{r, echo=FALSE, include=FALSE}
+# Estraiamo i risultati per le variabili
+
+var <- get_pca_var(objects_of_pca)
+
+# Mostriamo gli oggetti di get_pca_var
+var     
+
+
+
+# Coordinate delle variabili
+head(var$coord, 17)
+
+
+# Contributi delle variabili alle PC
+head(var$contrib, 17)
+
+df.contrib.var <- data.frame(var$contrib)
+# Maggiore è il valore del contributo, più la variabile contribuisce alla PC
+```
+```{r, echo=FALSE, include=TRUE}
+
+gt(df.contrib.var, rownames_to_stub = 1,auto_align = 1) %>%
+  gtExtras::gt_theme_espn()
+```
+\newpage
+
+### Relazioni tra variabili - Correlation Circle
+
+La relazione tra variabili può essere mostrata grazie ad un *Correlation circle plot*, in cui le correlazioni tra le variabili di partenza e le PC sono rappresentate da coordinate. La lunghezza della linea e la prossimità alla circoferenza nel grafico ci dicono quanto bene è rappresentata la variabilità.
+\  
+\  
+
+```{r, echo=FALSE, include=TRUE}
+# Grafico Variabili PCA
+fviz_pca_var(objects_of_pca,  
+             repel = TRUE,
+             geom = c("arrow", "text"),
+             title = "PCA Graph of Variables")
+```
+ 
+### Intrepretazione del grafico
+
+- Se l'ampiezza degli angoli tra le variabili è piccola vi è **correlazione positiva**;
+
+- Se l'ampiezza degli angoli tra le variabili è prossima a 180°, **correlazione negativa**;
+
+- Qualora dovessero formarsi angoli di 90°, allora vi è **assenza di correlazione**.
+\  
+
+Dal grafico e sulla base di quanto appena detto, possiamo vedere come le prime due PC spieghino il 57.1% della variabilità totale (percentuali riportate ai lati del grafico). Andando ad analizzare gli angoli che si sono formati tra le diverse variabili vediamo come alcune siano positivamente correlate fra loro (ampiezza angolo bassa) ad esempio *Starts* e *Min* oppure *Ast90* e *G+A*. Altre invece mostrano assenza di correlazione formando angoli di quasi novanta gradi come *CrdY* e *Gls90* oppure *CrdR* e *G+A-PK*.
+\newpage
+
+### Qualità della rappresentazione delle variabili
+È possibile illustrare quanto bene siano spiegate le variabili di partenza dalle nuove dimensioni mediante il cosiddetto $cos^{2}$ (*cosen quadrato*).
+\  
+
+```{r, echo=FALSE,include=FALSE}
+df.cos2 <- data.frame(var$cos2)
+```
+```{r, echo=FALSE, include=TRUE}
+gt(df.cos2, rownames_to_stub = 1,auto_align = 1) %>%
+  gtExtras::gt_theme_espn()
+```
+\  
+Nella tabella sono riportati i valori del $cos^{2}$ di ogni dimensione rispetto alle variabili di partenza. Una rappresentazione grafica permette di comprendere meglio il tutto.
+\  
+
+```{r, echo=FALSE,include=TRUE}
+# Barplot della qualità della rappresentazione delle variabili da parte delle
+# prime due componenti principali
+
+fviz_cos2(objects_of_pca, 
+          choice = "var", 
+          axes = 1:2)
+```
+\  
+
+Se il valore del $cos^{2}$ è alto, prossimo ad 1, allora la dimensione considerata rappresenta molto bene quella specifica variabile (ad esempio, le variabili *90s*, *Min*, *Starts* sono spiegate davvero bene dalle prime due PC, come vediamo nel grafico sopra riportato), e nel *correlation circle plot* la variabile si avvicina molto alla circonferenza. Invece, un valore di $cos^{2}$ basso ci dice che quella specifica variabile non è spiegata molto bene dalle PC considerate (si veda *Age* e *CdrR*), quindi nel *correlation circle plot* la variabile si avvicina molto al centro del grafico.
+
+Per ogni variabile, la somma dei $cos^{2}$ sulle varie PC è pari ad 1. Alcune variabili necessitano di poche (una o due) componenti principali per essere rappresentate bene, altre invece hanno bisogno di più PC per avere un $cos^{2}$ accettabile.
+\  
+
+```{r, echo=FALSE, include=TRUE}
+# Qualità della rappresentazione tramite il Correlation Plot
+
+fviz_pca_var(objects_of_pca, 
+             col.var = "cos2", 
+             repel = TRUE,
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             geom = c("arrow", "text"))
+```
+\  
+
+- Le variabili con un $cos^{2}$ *alto* hanno un colore tendente all'arancione scuro;
+
+- Le variabili con un $cos^{2}$ *basso* hanno un colore tendente all'azzurro/blu;
+
+- Le variabili con un $cos^{2}$ *medio* hanno un colore tendente al giallo.
+\newpage
+
+## CLUSTER ANALYSIS 
+
+La **Cluster Analysis** è un insieme di tecniche le quali hanno il fine di raggruppare degli "oggetti" in base alle caratteristiche che possiedono. Quindi, permette il raggruppamneto di osservazioni, basato sulla *distanza*, tra loro simili per alcuni attributi.
+
+Un *Cluster* è perciò un insieme di osservazioni tra loro molto simili e, se l'analisi dei cluster viene fatta correttamente, si avrà che le osservazioni all'interno dei singoli cluster hanno una somiglianza molto alta, invece i vari cluster saranno tra loro molto dissimili. La **somiglianza** è il grado di corrispondenza tra gli oggetti. Questa viene misurata con le *misure di correlazione* (poco usate) e le *misure di distanza* (molto usate). Per queste ultime, a valori elevati di distanza corrisponde poca somiglianza; distanza minore, invece, è uguale a somiglianza maggiore.
+
+Distinguiamo l'*Analisi Gerarchica* e l'*Analisi non gerarchica*:
+
+- **Analisi Gerarchica** : procedura step-by-step in cui vengono creati dei gruppi di record omogenei basandosi su specifiche caratteristiche, viene sfruttato un algoritmo (*Dendogramma*): *agglomerativo* (da *n* cluster ad 1) o *divisivo* (da 1 cluster ad *n* cluster).
+
+- **Analisi non gerarchica** : questa non si serve del dendogramma e il tipo di metodo più usato è il *k-means*. Punta a suddividere *n* osservazioni in *k* cluster, ogni osservazione viene assegnata al cluster che ha una media vicina al valore dell'osservazione stessa.
+
+Il modo più opportuno per fare un'ottima cluster analysis è utilizzare una combinazione delle due tipologie, dapprima usando l'analisi gerarchica e succesivamente la non gerarchica.
+\newpage
+
+
+### Analisi gerarchica (Hierarchical Clustering)
+
+Come già detto in precedenza, l'anailisi gerarchica si basa su algoritmi divisivi e agglomerativi, i più utilizzati fra questi ultimi sono: il collegamento singolo, completo, medio, metodo del centroide e metodo di Ward.
+L'analisi gerarchica è utile per campioni non troppo grandi ed è, però, suscettibile agli outliers.
+\  
+
+```{r, echo=FALSE, include=FALSE}
+var_stand <- scale(variabili_utilizzabili[,-c(1:4)])
+
+#### HIERARCHICAL ALGORITHM
+
+
+library(tidyverse)  # data manipulation
+library(cluster)    # clustering algorithms
+library(factoextra) # clustering visualization
+library(dendextend) # for comparing two dendrograms
+
+#Agglomerative Hierarchical Clustering
+# Dissimilarity matrix
+
+dendogramma <- dist(var_stand, method = "euclidean")
+
+# Hierarchical clustering using Distance of Ward
+hc1 <- hclust(dendogramma, method = "ward.D" )
+
+names(hc1)
+
+
+# Cut tree into 4 groups
+
+sub_grp <- cutree(hc1, k = 4, use_labels_not_values = TRUE)
+
+
+# Number of members in each cluster
+table(sub_grp)
+
+centers <- by(var_stand,sub_grp,colMeans) 
+```
+\  
+Per determinare il numero ottimale di cluster in cui raggruppare le nostre osservazioni possiamo tener conto di due grafici: l'**Elbow Method**,il quale mostra la percentuale di varianza spiegata in base del numero di cluster.
+\  
+
+```{r, echo=FALSE, include=TRUE}
+#Determining Optimal Clusters
+
+# Elbow Method
+fviz_nbclust(var_stand, FUN = hcut, method = "wss") +
+  geom_vline(xintercept = 4, linetype = 2) +
+  labs(subtitle = "Elbow method")
+
+```
+\  
+Grazie al grafico è possibile comprendere come i primi 4 cluster ($k = 4$) siano quelli in grado di conservare più varianza (a cui corrisponde il *gomito* del grafico); a partire dal cluster successivo la varianza spiegata da ogni cluster diminuisce, percò possiamo affermare che le nostre osservazioni potranno essere raggruppate in 4 cluster tramite l'analisi gerarchica.
+\  
+
+Con l'analisi gerarchica è necessario servirsi di algorimti agglomerativi o divisi. Nel nostro caso ci serviamo di un algoritmo agglomerativo, ottenendo così la costruzione del **Dendogramma**, cioè un grafico ad "*albero*", dove ogni "*foglia*" rappresenta la singola osservazione (ognuna delle quali, all'inizio dell'analisi, rappresenta anche un singolo cluster ). L'asse delle ascisse mostra la distanza tra i cluster (ossia lo strumento di cui ci serviamo per verificare la somiglianza tra i clusters); sull'asse delle ordinate è mostrato il livello gerarchico di aggregazione. L'algoritmo usato per creare il dendogramma è il *metodo di Ward ("ward.D")*, il quale si dimostra essere poco sensibile agli outliers.
+
+```{r, echo=FALSE, include=TRUE}
+
+plot(hc1, cex = 0.3, main = "Dendogramma")
+rect.hclust(hc1, k = 4, border = 2:5)
+```
+\  
+
+Per interpretare il grafico, dobbiamo dire che minore è la distanza (asse delle ascisse) e maggiore è il livello di somiglianza tra i cluster. Inoltre questo potrebbe darci la possibilità di conoscere il numero di cluster con cui effettuare l'analisi non gerarchica (informazione che abbiamo ottenuto grazie all'elbow method).
+
+### Analisi non gerarchica (k-means)
+Una volta determinato il numero di cluster, possiamo effetuare l'analisi non gerarchica, la quale sfrutta il metodo *k-means*. Questo metodo punta ridurre la varianza intra-gruppo (ossia tra gli elementi facenti parte di uno stesso cluster), suddividendo *n* osservazioni in *k* cluster, ogni osservazione viene assegnata al cluster che ha un *centroide* (il quale di solito corrisponde alla media dei punti nel cluster) il cui valore è prossimo al valore dell'osservazione stessa.
+
+### Strumenti grafici k-means
+Poiché conosciamo il numero di cluster $k$, procediamo con il raggruppamento delle osservazioni. Nel primo grafico poniamo un numero di clusters ($k=3$) inferiore rispetto a quello "ottimale", nel secondo avviene il raggruppamento corretto in quattro clusters. Già grazie a questa occhiata al grafico vediamo come le osservazioni siano raggruppate decisamente meglio nel secondo grafico e non nel primo.
+
+
+```{r, echo=FALSE, include=FALSE}
+###K-MEANS (partitioning)
+
+# K-Means
+k.means.fit <- kmeans(var_stand, centers=4)
+```
+```{r, echo=FALSE, include=TRUE}
+k.means.fit_3 <- kmeans(var_stand, centers=3)
+
+cl3 <- fviz_cluster(k.means.fit_3, data = var_stand) +
+  labs(title = "k = 3")
+
+cl4 <- fviz_cluster(k.means.fit, data = var_stand) +
+  labs(title = "k = 4")
+
+grid.arrange(cl3, cl4)
+```
+
+\newpage
+# REGRESSIONE LINEARE
+
+Il *modello di regressione lineare* è uno dei modelli più utilizzati per individuare le relazioni causa-effetto tra variabili.
+
+Strumenti come lo scatter-plot, la covarianza e la correlazione ci permettono di capire soltanto se vi è una relazione di tipo lineare, e non funzionale.
+
+Per costruire e usare il modello di regressione lineare è necessario seguire alcune fasi:
+
+1. *Fase di specificazione*;
+
+2. *Stima dei Parametri*;
+
+3. *Verifica del modello (diagnostica)*.
+
+\  
+
+### 1. Fase di specificazione 
+Durante questa fase sono esplicitate le variabili che compongono il nostro modello. 
+
+\begin{center}
+$Y = f(X_{1}, X_{2}, ..., X_{p} ) + \epsilon$
+\end{center}
+\  
+
+Dove $Y$ è la *variabile dipendente*, mentre le $X$ sono le *variabili indipendenti (o esplicative)*, le quali vanno ad influenzare $Y$, mentre $\epsilon$ rappresenta una *variabile residuale (o errore)* che racchiude l'insieme delle concause non note che influenzano la variabile dipendente $Y$ e il suo comportamento deve essere imprevedibile.
+
+Il modello si basa su 5 ipotesi differenti:
+
+1. *Ipotesi di linearità* : la funzione è di tipo di lineare, linearità rispetto a $\beta_{j}$;
+
+2. $X$ è deterministica, ovvero non ha natura stocastica;
+
+3. $E(\epsilon_{i}) =  0$;
+
+4. *Ipotesi di omoschedacità* (varianza costante) : $Var(\epsilon_{i}) = \sigma^{2}$;
+
+5. $Cov(\epsilon_{i}, \epsilon_{j}) = 0$
+\  
+
+Il legame causa-effetto può essere di qualsiasi tipo, ma nella pratica si preferisce utilizzare una funzione lineare. Per questo motivo si parla di *regressione lineare multipla*, la quale ha la seguente formulazione:
+
+\begin{center}
+$Y = \beta_{0} + \beta_{1}X_{1} + \beta_{2}X_{2} +\beta_{i}X_{i}+ \epsilon$
+\end{center}
+\  
+
+Dove $\beta_{0}$ è detto termine noto, $\beta_{1}, \beta_{2}, \beta_{i}$ mentre sono detti coefficienti di regressione e, insieme alla varianza
+dell’errore, sono i parametri del modello da stimare sulla base delle osservazioni campionarie.
+
+
+### 2. Stima dei Paramteri
+
+Per stimare i parametri, in base alla situazione si potranno anche scegliere metodi diversi, ma in generale si sceglie il *metodo degli OLS* (minimi quadrati) minimizzando la somma dei quadrati degli stimatori.
+
+
+### 3. Verifica del Modello di regressione (o fase di diagnostica)
+
+Prima di essere utilizzato per effettuare delle prvisioni, è necessario verificare che il modello rispetti le ipotesi che abbiamo visto in precedenza. Per questo motivo si effettua la fase di diagnostica, in quanto qualora una o più ipotesi non dovessero essere verificate, la bontà del modello viene meno, ed è necessario ripartire dal primo step.
+
+- Media degli errori non sia significamente diversa da zero : *Test t di Student*;
+
+- Normalità della distribuzione degli errori : *Test di Shapiro Wilk*;
+
+- Omoschedasticità dei residui : *Test di Breusch-Pagan*;
+
+- Assenza di correlazione seriale (o autocorrelazione) : *Test di Durbin-Watson*.
+
+Verranno poi considerati alcuni strumenti grafici nell'**analisi dei residui**, poi si verificherà la *bontà di accostamento del modello ai dati* tramite l'indice **$R^{2}$**.
+
+## Stima del modello di regressione del dataset
+
+Consideriamo come osservazioni soltanto quelle in corrispndenza di calciatori che ricoprono la posizione di difensore.
+Quando il nostro modello di regressione viene costruito, l'indice $R^{2}$ è solitamente alto (esso può assumere valori tra 0 e 1). Un aumento di $R^{2}$ non significa necessariamente che la variabile aggiunta sia statisticamente significativa (la risposta a tale domanda passa per un test t).
+
+Dal momento che $R^{2}$ è interpretabile comecompromesso tra bontà di adattamento e penalità dovuta al soprannumero di regressori “utili”, una procedura ragionevole nella specificazione del modello consiste nel continuare ad includere regressori fino al momento in cui  $R^{2}$ inizia a decrescere. 
+\  
+
+
+```{r, echo=FALSE, include=FALSE}
+df <- subset(variabili_utilizzabili,
+             subset = Pos == "DF")
+df
+
+attach(df)
+
+result.df <- lm(MP ~  Age  +Starts + Min +`90s` + Gls + Ast + `G-PK` + CrdY + PK + PKatt +CrdR + Gls90 + Ast90 + `G+A` + `G-PK90` + `G+A-PK`)
+
+```
+
+```{r, echo=FALSE, include=TRUE}
+summary(result.df)
+```
+\  
+Miglioriamo il modello non considerando tutte quelle variabili aventi un coefficiente di regressione poco significativo e sia tutte quelle che produrranno valori NA.
+\  
+
+Usufruiamo quindi dell'algoritmo *Backward selection* per stimare i regressori.Tale algoritmo, considerando tutte le variabili del dataset e fissato un *livello di sgnificatività* ($\alpha = 0.05$), elimina la variabile con il coefficiente di regressione meno significativo, quindi le stime dei coefficienti delle variabili rimaste sono calcolate nuovamente e si ripete il procedimento sino a quando non vi sono più covariate che risultano non significative al livello prefissato. In questo modo, passiamo da un modello con 17 regressori iniziali, a soli 5 regressori.
+\  
+
+```{r, include=FALSE, echo=FALSE}
+backsel.df <-step(result.df , direction="backward") #Backward selection
+```
+
+```{r, echo=FALSE, include=TRUE}
+summary(backsel.df)
+```
+\  
+
+Perciò, il nostro miglior modello di regressione adesso sarà:
+
+\begin{center}
+$MP \sim Min + Ast + CrdY + Ast90 + (G+A)$
+\end{center}
+
+\  
+*Nota: (G+A) rappresenta, come sopra, un'unica variabile.*
+\newpage
+
+## Test di specificità
+
+Adesso verifichiamo che le ipotesi del modello siano verificate:
+
+### T Test
+
+Il *T Test* ci permette di verificare che la media degli errori sia significativamente non diversa da zero.
+\  
+\begin{align*}
+H_{0} & : E(\epsilon_{i}) = 0 \\
+H_{1} & : E(\epsilon_{i}) \neq 0
+\end{align*}
+
+
+```{r, echo=FALSE, include=TRUE}
+# T Test per l'ipotesi di media degli errori uguale a zero
+residui <- backsel.df$residuals
+t.test(residui)
+```
+\  
+Rifiuterei il l'ipotesi nulla $H_{0}$ se $p-value < 0.05$. Dal test vediamo che il p-value è pari ad 1, perciò accettiamo l'ipotesi che la media dei residui non sia significativamente diversa da zero.
+
+
+### Shapiro-Wilk Test
+
+Il *Test Shapiro-Wilk* ci permette di verificare, in questo caso, la normalità degli errori.
+\  
+\begin{center}
+$\epsilon_{i} \sim N(0, \sigma^{2})$ 
+\end{center}
+
+```{r, echo=FALSE, include=TRUE}
+## Shapiro wilk test per la normalità degli errori
+
+shapiro.test(residui)
+```
+\  
+Il test dà come risultato un p-value di gran lunga inferiore al nostro livello di significatività (0.05), per questo motivo l'ipotesi nulla viene rifiutata, il che vuol dire che gli errori non si distribuiscono normalmente. Quindi l'ipotesi non è verificata. Si può notare anche dal *Normal Probability plot*, nel quale, se l'ipotesi fosse verificata, i punti si distribuirebbero molto vicini alla diagonale nel grafico e possiamo notare che non è così.
+\  
+```{r, echo=FALSE, include=TRUE}
+qqnorm(residui)
+abline(0,1)
+
+```
+\  
+Procediamo con gli altri test.
+
+### Test Breusch-Pagan
+
+Il *Test Breusch-Pagan* è utile per verificare l'ipotesi di omoschedasticità degli errori.
+\  
+
+```{r, echo=FALSE, include=TRUE}
+# Test Breusch-Pagan per l'omoschedacità
+
+library(lmtest)
+
+model <- formula(backsel.df)
+
+test_bp <- bptest(model, data = variabili_utilizzabili)
+
+test_bp
+```
+\  
+Anche in questo caso, l'ipotesi non è verificata, quindi la varianza degli errori non è costante e si ha eteroschedasticità.
+
+
+### Test Durbin-Watson
+
+Tale test permette di verificare l'assenza di correlazione seriale degli errori, ovvero che gli errori non siano autocorrelati l'un l'altro.
+\  
+```{r, echo=FALSE, include=TRUE}
+## Test Durbin Watson
+
+dwtest(model)
+```
+\  
+Infine, anche nel caso di tale test, rifiuto l'ipotesi nulla in quanto il p-value è molto piccolo, perciò i residui sono tra loro autocorrelati.
+
+## ANALISI DEI RESIDUI
+
+### Normal probability plot per verificare la normalità
+\  
+
+```{r, echo=FALSE, include=TRUE}
+qqnorm(residui)
+abline(0,1)
+```
+\  
+All'interno del nostro *Normal Probability plot*, se l'ipotesi fosse verificata, i punti si distribuirebbero molto vicini alla diagonale nel grafico e possiamo notare che non è così, quindi gli errori non si distribuiscono normalmente.
+
+### Verifica dell'incorrelazione tra le variabili esplicative e gli errori
+\  
+```{r,echo=FALSE, include=TRUE}
+# asse x = variabili indipendenti
+# asse y = residui
+
+# MP ~ Min + Ast + CrdY + Ast90 + `G+A`
+
+## Min e Residui
+par(mfrow = c(2,3))
+plot(Min, residui)
+
+## Ast e residui
+plot(Ast, residui)
+
+## CrdY e residui
+plot(CrdY, residui)
+
+## Ast90 e residui
+plot(Ast90, residui)
+
+## G+A e rresidui
+plot(`G+A`, residui)
+```
+\  
+La correlazione tra le variabili esplicative $X$ e gli errori $\epsilon$ non deve esistere, in quanto, se così fosse, sarebbe possibile "prevedere" gli errori date le variabili, ma gli errori devono essere imprevedibili. L'ipotesi è confermata poiché dai grafici a dispersione sopra riportati non è possibile individuare alcun tipo di relazione lineare.
+\newpage
+
+### Ipotesi di omoschedasticità dei residui
+Per verificare la presenza di omoschedasticità tramite l'analisi dei residui occorre tracciare il grafico dei residui in valore assoluto (ordinata) verso i valori stimati con il modello: la dispersione verticale dovrebbe essere approssimativamente costante. Nel grafico sottostante, questa dispersione verticale non si evidenzia, perciò vi è eteroschedasticità.
+
+
+```{r, echo=FALSE, include=TRUE}
+# asse x = valori stimati della Y (y_capp)
+# asse y = residui
+
+y_capp <- backsel.df$fitted.values
+
+
+# Valori stimati e valori assoluti dei residui
+plot(y_capp, abs(residui), main =  "Abs Residuals vs Fitted",
+     ylab = "Residui", xlab = "Fitted values")
+```
+\  
+
+
+### Ipotesi di distribuzione lineare dei residui
+L'ipotesi deve essere verificata con lo stesso grafico *Residui vs Fitted values*. Nel grafico è andrà riportata una linea orizzontale in corrispondenza dei residui con media zero. Ricordiamo che i residui di un modello di regressione costruito con il metodo dei minimi quadrati (OLS) hanno per definizione sempre media zero.
+La linea rossa invece è una linea di tendenza, utile per verificare l'ipotesi. Se la linea rossa è abbastanza sovrapponibile alla linea tratteggiata, allora l’ipotesi di linearità è verificata.
+Secondo l’ipotesi di linearità, i dati devono infatti distribuirsi in modo casuale intorno allo 0. Se la dispersione non è casuale, ma assume un andamento preciso attorno allo 0, allora non vi è linearità nella distribuzione dei residui.
+\  
+
+```{r, echo=FALSE, include=TRUE}
+plot(lm( MP ~ Min + Ast + CrdY + Ast90 + `G+A`, data = df ), 1)
+abline(0,0)
+
+```
+\  
+Vediamo che la dispersione dei dati visualizzabile grazie alla linea rossa non è *casuale*, quindi non vi è linearità nella distribuzione dei residui.
+
+### Verificare la presenza di outliers nel modello con l'analisi dei residui
+
+Il grafico utilizzato per verificare la linearità nella distribuzione degli errori, può essere sfruttato anche per individuare eventuali *outliers* nel modello. Semplicemente questi punti sono identificati da un numero e, nel grafico, sono più isolati rispetto agli altri punti. Rivedendo il grafico prcedente notiamo come siano presenti outliers al suo interno.
+\  
+Per verificare la presenza di outliers che influenzano la nostra retta di regressione, possiamo utilizzare anche:
+
+•	I **punteggi di leva** (*leverage points*) : sono compresi tra 0 ed 1. Un punteggio elevato di leva è quindi un valore vicino ad 1.
+
+•	La **distanza di Cook** : si considerano elevati i valori superiori ad 1.
+
+
+Tutte queste tecniche utilizzano come approccio quello del togliere un’osservazione alla volta dal campione e vedere cosa cambia nei risultati. *Osservazioni che hanno valori elevati per tutte queste misure sono considerate un possibile problema.*
+\newpage
+
+
+### Punteggi di Leva
+
+I punti con un elevato effetto di leva sono quei punti per cui si ha un altezza maggiore al rapporto, moltiplicato poi per due, tra la somma delle leve e la lunghezza di queste ultime (ovvero sono più distanti dalla retta orizzontale tracciata nel grafico). Possiamo vedere questi punti graficamente e identificare gli outliers.
+\  
+
+```{r, echo=FALSE, include=TRUE}
+# Leverage points
+
+# Otteniamo i punti di leva
+lev<-hatvalues(backsel.df)
+
+n<-length(lev)
+p<-sum(lev)
+plot(lev, main="Punti di leva")
+abline(h=2*p/n)
+```
+\  
+
+Altro strumento utile per la diagnostica è il **partial leverage plots**. Quando le variabili esplicative sono più di una, la relazione tra i residui e una variabile esplicativa può essere influenzata per effetto degli altri
+regressori. Il partial leverage plots mette in evidenza queste relazioni.
+
+
+Sull’asse delle ascisse sono rappresentati i residui della regressione della i.esima variabile esplicativa sui rimanenti k-1 regressori; sull’asse delle ordinate sono rappresentati i residui della regressione della variabile risposta su tutti i regressori escludento l’i.esimo.
+*Il partial leverage plots è usato per misurare il contributo della variabile indipendente al leverage di ciascuna osservazione, misura, cioè, come variano i punti di leva quando si aggiunge un regressore al modello.*
+
+```{r, echo=FALSE, include=FALSE}
+library(car)
+```
+```{r, echo=FALSE, include=TRUE}
+
+leveragePlots(backsel.df)
+```
+
+\  
+Ogni grafico ci mostra una linea di regressione con la pendenza corrispondente alla stima del parametro della variabile esplicativa presa in considerazione; mostrando inoltre una variazione quando vengono aggiunti al modello. Una variabile che risulta avere poca influenza sui punti di leva di ciascuna osservazione viene rappresentata vicino alla retta orizzontale Y = 0.
+\newpage
+
+### Distanza di Cook
+La **Distanza di Cook** ($D_{i}$) ci permette di capire quale sia l'*influenza* di un punto in un modello di regressione cotruito col metodo dei minimi quadrati (OLS) e di comprendere come cambierebbe il nostro modello se uno specifico dato venisse rimosso. Punti con elevato residuo (outlier) o elevato leverage possono distorcere il risultato e l'accuratezza di un'analisi di regressione.
+
+
+```{r, echo=FALSE, include=FALSE}
+### DISTANZA DI COOK
+library(olsrr)
+
+# Distanza di Cook per ogni osservazione
+ckd <- cooks.distance(model = backsel.df)
+```
+```{r, echo=FALSE, include=TRUE}
+# Otteniamo gli outliers
+olsrr::ols_plot_cooksd_chart(backsel.df, print_plot = FALSE)
+
+# Otteniamo il barplot della distanza di Cook
+
+#olsrr::ols_plot_cooksd_bar(backsel.df)
+```
+\  
+Analizzando il nostro risultato, partiamo innanzitutto dal grafico. Sull'asse delle ascisse abbiamo le nostre osservazioni del modello (sono 185 osservazioni, poiché ricordiamo di aver costruito il modello solo per i difensori); sull'asse delle ordinate abbiamo la distanza di Cook per ogni osservazione. Come vediamo varia da valori prossimi allo 0 ad un valore maggiore di 1. Per capire quanti outliers abbiamo vi sono 2 opinioni differenti:
+
+1. L'osservazione rappresenta un outlier se assume un valore superiore ad 1;
+
+2. L'osservazione rappresenta un outlier se assume un valore superiore ad una soglia (una distanza di cook) calcolata come di seguito e rappresentata mediante la linea rossa orizzontale nel grafico.
+\  
+
+\begin{center}
+$D_{i} = \frac{4}{n}$
+\end{center}
+\  
+
+
+Nella formula $n$ rappresenta il numero di osservazioni. Effetuando il calcolo otteremo che questo valore di soglia è pari a $0.02162162$, valore che possiamo individuare nei risultati ottenuti al di sotto del grafico. Tra questi risultati sono presenti anche i nostri outliers (i quali sono 10 osservazioni e hanno una distanza di Cook superiore a questa soglia). Nel grafico, i punti indicati con un numero e che oltrepassano la linea rossa sono gli outliers del nostro modello.
+
+
+Una volta che gli outliers sono stati individuati, devono essere rimossi per stimare il nuovo modello di regressione.
+\  
+
+
+
+```{r, echo=FALSE, include=FALSE}
+# df_no_outliers <-df[-c(22, 49, 53, 76, 91, 93, 97, 98, 125, 154),]
+
+# la linea di sopra è ora un commento, altrimenti avrei una rimozione di 10 righe ad ogni sua esecuzione
+
+# View(df_no_outliers)
+
+result.df_no_out <- lm(MP ~  Age  +Starts + Min +`90s` + Gls + Ast + `G-PK` + CrdY +
+                  PK + PKatt +CrdR + Gls90 + Ast90 + `G+A` + `G-PK90` + `G+A-PK`)
+
+#summary(result.df_no_out)
+
+backsel.df_no_out <-step(result.df_no_out , direction="backward") #Backward selection
+
+
+```
+```{r, echo=FALSE, include=TRUE}
+summary(backsel.df_no_out)
+```
+
+## CONCLUSIONE
+Dopo aver effettuato le nostre analisi sul dataset considerato e aver estrapolato molte informazioni e aver costruito un modello di regressione lineare, è doveroso riportare che, in quest'ultima fase, sebbene gli outliers siano stati rimossi e i test di specificià necessari visti in precedenza siano stati ripetuti, i risultati ottenuti, in sostanza, non cambiano. In conclusione, i metodi utilizzati per stimare il nostro modello di regressione non sono ottimali, perciò sarebbe opportuno, nel nostro caso, fare affidamento ad altri metodi di stima dei parametri oppure utilizzare modelli di regressione di altra natura.
+
