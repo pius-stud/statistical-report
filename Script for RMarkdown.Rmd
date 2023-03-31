@@ -9,7 +9,7 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# PRESENTAZIONE DEL DATATASET
+# PRESENTAZIONE DEL DATATASET 
 
 Il dataset oggetto di analisi contiene numerose statistiche su ogni calciatore che ha preso parte al massimo campionato inglese di calcio, la **Premier League**, nella stagione 2021-2022. Ad esempio, per ogni calciatore possiamo vedere quale sia la squadra di appartenenza, la nazionalità, il numero di partite giocate o di goal segnati, ma vediamo le variabili più nel dettaglio.
 
